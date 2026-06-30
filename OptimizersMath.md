@@ -26,7 +26,7 @@ $$
 
 But now, we dont have any data of the direction in which we need to flow, so let
 $$
-\Delta = \epsilon \nabla L(x)
+\Delta = \epsilon\nabla L(x)
 $$
 where $\epsilon \to 0$
 
@@ -36,24 +36,24 @@ $$
 H(x)\nabla L(x) = \frac{\nabla L(x + \epsilon \hat \nabla L(x)) - \nabla L(x)}{\epsilon}
 $$
 
-$\hat \nabla L(x)$ is nothing but the direction vectors of the gradient, $\hat \nabla L(x) = \frac{\nabla L(x)}{\|\nabla L(x)\|}$
+$\hat \nabla L(x)$ is nothing but the direction vectors of the gradient, $\hat \nabla L(x) = \frac{\nabla L(x)}{||\nabla L(x)||}$
 
 hence overall, the expression becomes:
 
 $$
-\kappa = \frac{\nabla L^T(x) \left\{\frac{\nabla L(x + \epsilon\hat \nabla L(x)) - \nabla L(x)}{\epsilon}\right\}}{\nabla L^T(x) \nabla L(x)}
+\kappa = \frac{\nabla L^T(x) \{\frac{\nabla L(x + \epsilon\hat \nabla L(x)) - \nabla L(x)}{\epsilon}\}}{\nabla L^T(x) \nabla L(x)}
 $$
 
 let $\nabla L(x) = g$
 
 $$
 \begin{aligned}
-\kappa &= \frac{g^T \left\{\frac{\nabla L(x + \epsilon\hat g) - g}{\epsilon}\right\}}{g^T g} \\
-\kappa &= \frac{g^T\nabla L(x + \epsilon\hat g) - \|g\|^2}{\|g\|^2}
+\kappa &= \frac{g^T \{\frac{\nabla L(x + \epsilon\hat g) - g}{\epsilon}\}}{g^T g} \\
+\kappa &= \frac{g^T\nabla L(x + \epsilon\hat g) - ||g||^2}{||g||^2}
 \end{aligned}
 $$
 
-Note that we capture both curvature and gradient data ($\|g\|$) and both these parameters have a say on the final LR
+Note that we capture both curvature and gradient data ($||g||$) and both these parameters have a say on the final LR
 
 Now, suppose we are working with batched data meaning our g values are not the actual, true grads of the entire dataset but only a batch/sample of the data, for which the loss landscape might be different than the actual dataset why? because in a particular batch the number of items in each label of the data might be at different concentrations which affect the updates of the learnable params,
 
@@ -71,7 +71,7 @@ Now, we need to create a function of the LR using this quantity $\bar \kappa_{t}
 
 what we want to do is:
 
-| $\kappa$ | $\|g\|$ | Optmal $\eta$ value change |
+| $\kappa$ | $||g||$ | Optmal $\eta$ value change |
 | :--- | :---: | :--- |
 | +ve High | High | decrease |
 | -ve High | Low | increase |
@@ -84,7 +84,7 @@ what we want to do is:
 
 Define a function:
 $$
-risk(\bar \kappa, \|g\|) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{\|g\|}} + \text{RevReLU}(\|g\| \cdot \bar \kappa)
+risk(\bar \kappa, ||g||) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{||g||}} + \text{RevReLU}(||g|| \cdot \bar \kappa)
 $$
 
 Where RevReLU is defined as:
@@ -96,12 +96,12 @@ $$
       \end{cases}
 $$
 
-This custom risk function still has an error which is the second term : $\text{RevReLU}(\|g\| \cdot \bar \kappa)$, here $\|g\| \cdot \bar \kappa$ can grow arbitrarily large when $\bar \kappa$ is huge and -ve, to tackle this issue we can introduce a squashing function, $\ln(1 + \text{RevReLU}(\|g\| \cdot \bar \kappa))$ for example or maybe even $\sigma(\text{RevReLU}(\|g\| \cdot \bar \kappa))$
+This custom risk function still has an error which is the second term : $\text{RevReLU}(||g|| \cdot \bar \kappa)$, here $||g|| \cdot \bar \kappa$ can grow arbitrarily large when $\bar \kappa$ is huge and -ve, to tackle this issue we can introduce a squashing function, $ln(1 + \text{RevReLU}(||g|| \cdot \bar \kappa))$ for example or maybe even $\sigma(\text{RevReLU}(||g|| \cdot \bar \kappa))$
 
 giving us a final (v2) function of:
 
 $$
-risk(\bar \kappa, \|g\|) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{\|g\|}} + \sigma(\text{RevReLU}(\|g\| \cdot \bar \kappa))
+risk(\bar \kappa, ||g||) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{||g||}} + \sigma(\text{RevReLU}(||g|| \cdot \bar \kappa))
 $$
 
 For some reason, an EMA of $\kappa ^2$ works better than an EMA of $\kappa$, for which I am unable to find the reason, but it beats other optimizers on N-Dimensional defined terrains, but that completely destroys the purpose of the curvature based LR calculation
@@ -176,9 +176,7 @@ $$
 A^2 = Q \Lambda^2 Q^T
 $$
 in general
-$$
-A^n = Q \Lambda^n Q^T
-$$
+$A^n = Q \Lambda^n Q^T$
 
 ## relation between svd and muon
 
@@ -201,15 +199,15 @@ probably because SVD is expensive,
 $$
 \begin{aligned}
 G &= U \Sigma V^T \\
-G^T G &= (U \Sigma V^T)^T (U \Sigma V^T) = V \Sigma^T U^T U \Sigma V^T \\
-\text{Since U is orthonormal} &\to U^T U = I \\
+G^T G &= (U \Sigma V^T)^T (U \Sigma V^T) = V \Sigma^TU^TU \Sigma V^T \\
+\text{Since U is orthonormal} &\to U^TU = I \\
 G^T G &= V \Sigma^T \Sigma V^T \\
-\text{Since } \Sigma \text{ is diagonal} &\to \Sigma^T = \Sigma \\
+\text{Since Σ is diagonal} &\to \Sigma^T = \Sigma \\
 G^T G &= V \Sigma^2 V^T, \ \text{taking power -1/2 on bts} \\
 (G^T G)^{-1/2} &= V \Sigma^{-1} V^T \ \text{by spectral theorem} \\
 \text{pre multiplying by G} & \\
 G (G^T G)^{-1/2} &= U \Sigma V^T V \Sigma^{-1} V^T \\
-\text{Since V is orthonormal} &\to V^T V = I \\
+\text{Since V is orthonormal} &\to V^TV = I \\
 G (G^T G)^{-1/2} &= U \Sigma \Sigma^{-1} V^T \\
 G (G^T G)^{-1/2} &= U V^T
 \end{aligned}
@@ -303,102 +301,4 @@ $$
 \end{aligned}
 $$
 
-Hence going by our earlier statement, $x_{new} = x_{old} + h$
-
-$$
-x_{n+1} = x_{n} - H^{-1}G
-$$
-
-## DFP:
-The theory explained below is of DFP (Davidon-Fletcher-Powell) where we estimate the inverse of H
-
-Calculating the hessian for trillions of parameters is impossible so, we estimate the hessian $ B\approx H^{-1}$ so that:
-$$
-x_{n+1} = x_{n} - B_nG_n
-$$
-
-define certain values:
-$$
-\begin{aligned}
-s_n &= x_{n+1} - x_n \\
-y_n &= G_{n+1} - G_n
-\end{aligned}
-$$
-using taylor expansion of $G_n$ around $s_n$
-$$
-\begin{aligned}
-G(x_n + s_n) &\approx G(x_n) + Hs_n \\
-G(x_n + x_{n+1} - x_n) - G(x_n) &\approx Hs_n \\
-y_n &= Hs_n \ \ \text{this condition is known as the secant equation} \\
-H^{-1}y_n &= s_n
-\end{aligned}
-$$
-
-Now, we need to estimate H recursively so lets have a variable $B_n$ such that
-$$
-\begin{aligned}
-B_{n+1}y_n &\approx s_n \\
-(B_n + \delta)y_n &= s_n
-\end{aligned}
-$$
-
-We know that the hessian is symmertrical, hence to ensure symmetry in our $B$, we must ensure $\delta$ is symmetrical (we initilize B from the identity matrix so it is already symmetrical), hence we initialize $\delta$ to be a rank-2 tensor using outer products
-
-$$
-\delta = \alpha u u^T + \beta v v^T
-$$
-
-where $\alpha$ and $\beta$ are constants and $u$ and $v$ are vectors with shapes of $y_n$ we need to find, overall this should satisfy the inverse secant equation:
-
-$$
-\begin{aligned}
-(B + \alpha u u^T + \beta v v^T)y_n &= s_n \\
-By_n + \alpha u (u^T y_n) + \beta v (v^T y_n) &= s_n
-\end{aligned}
-$$
-
-Now $(v^T y_n)$ and $(u^T y_n)$ are constants ($c_1$ and $c_0$) (since same shape of $u$ and $y_n$)
-
-$$
-c_0 \alpha u + c_1 \beta v = s_n - By_n
-$$
-
-The reason why we are using rank 2 tensors n not rank 1 tensor is because rank 1 tensors produce vectors which are always parallel to $y_n$ where as our $s_n - By_n$ term can be anything so to have some more freedom we use rank 2 tensors, rank 3, 4, ..., N ranks are also possible but computationally heavy.
-
-continuing the algorithm, we can set u and v to be $s_n$ and $B_ny_n$ since those are the vectors we know and those vectors make the LHS and thr RHS comparable so that we only have to find the scalar values now by comparing
-
-$$
-c_0 \alpha s_n + c_1 \beta B_ny_n = s_n - By_n
-$$
-
-By direct comparison, we can infer that:
-$$
-\begin{aligned}
-\alpha &= \frac{1}{c_0}, \beta = -\frac{1}{c_1} \\
-\alpha &= \frac{1}{s_n^T y_n}, \beta = -\frac{1}{y_n^T B_n y_n}, \ \ B_n^T = B_n, \ \ \text{symmetry} \\
-\delta &= \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n^T}{y_n^T B_n y_n} \\
-\delta &= \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}, \ \ \text{symmetry} \\
-B_{n+1} &= B_n + \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}
-\end{aligned}
-$$
-
-Thats it for the estimation.
-
-### BFGS
-
-Instead of approximating the inverse Hessian directly, we can approximate the Hessian itself, which is done in the actual BFGS algorithm
-
-$$
-M_n \approx H
-$$
-
-Using the secant equation
-
-$$
-M_{n+1}s_n = y_n
-$$
-
-and following the same procedure:
-
-$$
-M_{n+1}=M_n+\frac{y_n y_n^T}{y_n^T s_
+Hence going by our earlier statement
