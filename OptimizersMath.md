@@ -47,7 +47,9 @@ $$
 let $\nabla L(x) = g$
 
 $$
-κ = \frac{g^T \{\frac{∇L(x + ϵ\hat g) - g} ϵ\}}{g^T g} \\
+κ = \frac{g^T \{\frac{∇L(x + ϵ\hat g) - g} ϵ\}}{g^T g}
+$$
+$$
 κ = \frac{g^T∇L(x + ϵ\hat g) - ||g||^2}{||g||^2}
 $$
 
@@ -73,7 +75,8 @@ what we want to do is:
 $$
 \begin{array}{|l|c|r|}
 \hline
-\text{κ} & \text{||g||} & \text{Optmal η value change} \\ \hline
+\text{κ} & \text{||g||} & \text{Optmal η value change} \\ 
+\hline
 \text{+ve High}       & \text{High}               &\text{decrease}                 \\ \hline
 \text{-ve High}       & \text{Low}               & \text{increase}               \\ \hline
 \text{+ve Low}       & \text{High}               & \text{increase}               \\ \hline
