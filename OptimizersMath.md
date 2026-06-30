@@ -3,15 +3,15 @@
 Building an optimizer that takes into account the hessian information instead of making it on time (like cosine annealing etc) and changes the LR based upon the curvature, and we estimate the hessian using the following:
 
 $$
-∇L(x + \Delta) ≈ ∇L(x) + ϵ H(\Delta)
+\nabla L(x + \Delta) \approx \nabla L(x) + \epsilon H(\Delta)
 $$
 
-$Δ \to 0$
+$\Delta \to 0$
 
 the above is the taylor series linearization,
 
 $$
-H(x) = \frac{∇L(x + \Delta) - ∇L(x)} \Delta
+H(x) = \frac{\nabla L(x + \Delta) - \nabla L(x)}{\Delta}
 $$
 
 But remember that hessian is actually a matrix, we cant find any curvature information of an area using a matrix hence to actually "understand" the curvature, we use the rayleigh quotient to actually quantify the curavture as it is nothing but the eigenvalue and is not affected by the twisting of the vector space due to the linear transformation occuring due to the hessian, a higher eigenvalue translates to a higher rate of change of slope, and the sign of the eigenvalue dictate the maxima/minima/plane
@@ -21,39 +21,39 @@ But remember that hessian is actually a matrix, we cant find any curvature infor
 - close to 0 eigenvalue $\to$ PLANE
 
 $$
-κ = \frac{\nabla L^T(x) H(x) \nabla L(x)}{\nabla L^T(x) \nabla L(x)}
+\kappa = \frac{\nabla L^T(x) H(x) \nabla L(x)}{\nabla L^T(x) \nabla L(x)}
 $$
 
 But now, we dont have any data of the direction in which we need to flow, so let
 $$
-\Delta = ϵ∇L(x)
+\Delta = \epsilon \nabla L(x)
 $$
-where $ϵ \to 0$
+where $\epsilon \to 0$
 
 This is equivalent to nesterov momentum "foresight" (check Part 3: CNN Puremath)
 
 $$
-H(x)\nabla L(x) = \frac{∇L(x + ϵ \hat ∇L(x)) - ∇L(x)} ϵ
+H(x)\nabla L(x) = \frac{\nabla L(x + \epsilon \hat \nabla L(x)) - \nabla L(x)}{\epsilon}
 $$
 
-$\hat ∇L(x)$ is nothing but the direction vectors of the gradient, $\hat ∇L(x) = \frac{∇L(x)}{ ||∇L(x)||}$
+$\hat \nabla L(x)$ is nothing but the direction vectors of the gradient, $\hat \nabla L(x) = \frac{\nabla L(x)}{\|\nabla L(x)\|}$
 
 hence overall, the expression becomes:
 
 $$
-κ = \frac{\nabla L^T(x) \{\frac{∇L(x + ϵ\hat ∇L(x)) - ∇L(x)} ϵ\}}{\nabla L^T(x) \nabla L(x)}
+\kappa = \frac{\nabla L^T(x) \left\{\frac{\nabla L(x + \epsilon\hat \nabla L(x)) - \nabla L(x)}{\epsilon}\right\}}{\nabla L^T(x) \nabla L(x)}
 $$
 
 let $\nabla L(x) = g$
 
 $$
-κ = \frac{g^T \{\frac{∇L(x + ϵ\hat g) - g} ϵ\}}{g^T g}
-$$
-$$
-κ = \frac{g^T∇L(x + ϵ\hat g) - ||g||^2}{||g||^2}
+\begin{aligned}
+\kappa &= \frac{g^T \left\{\frac{\nabla L(x + \epsilon\hat g) - g}{\epsilon}\right\}}{g^T g} \\
+\kappa &= \frac{g^T\nabla L(x + \epsilon\hat g) - \|g\|^2}{\|g\|^2}
+\end{aligned}
 $$
 
-Note that we capture both curvature and gradient data ($||g||$) and both these parameters have a say on the final LR
+Note that we capture both curvature and gradient data ($\|g\|$) and both these parameters have a say on the final LR
 
 Now, suppose we are working with batched data meaning our g values are not the actual, true grads of the entire dataset but only a batch/sample of the data, for which the loss landscape might be different than the actual dataset why? because in a particular batch the number of items in each label of the data might be at different concentrations which affect the updates of the learnable params,
 
@@ -64,34 +64,27 @@ $g_{true}$ = gradients of the entire datset,
 Hence to overcome this problem we implement an EWMA (check out Adam section in Part 2: Logistic Regression)
 
 $$
-\bar κ_{t} = \beta \bar κ_{t-1} + (1-\beta)κ_t
+\bar \kappa_{t} = \beta \bar \kappa_{t-1} + (1-\beta)\kappa_t
 $$
 
 Now, we need to create a function of the LR using this quantity $\bar \kappa_{t}$ but how?
 
 what we want to do is:
 
-
-$$
-\begin{array}{|l|c|r|}
-\hline
-\text{κ} & \text{||g||} & \text{Optmal η value change} \\ 
-\hline
-\text{+ve High}       & \text{High}               &\text{decrease}                 \\ \hline
-\text{-ve High}       & \text{Low}               & \text{increase}               \\ \hline
-\text{+ve Low}       & \text{High}               & \text{increase}               \\ \hline
-\text{-ve Low}       & \text{Low}               & \text{increase}                \\ \hline
-\text{-ve High}       & \text{High}               &\text{decrease}                 \\ \hline
-\text{+ve High}       & \text{Low}               & \text{decrease}                \\ \hline
-\text{-ve Low}       & \text{High}               & \text{increase}                \\ \hline
-\text{+ve Low}       & \text{Low}               & \text{increase}                \\ \hline
-\end{array}
-$$
-
+| $\kappa$ | $\|g\|$ | Optmal $\eta$ value change |
+| :--- | :---: | :--- |
+| +ve High | High | decrease |
+| -ve High | Low | increase |
+| +ve Low | High | increase |
+| -ve Low | Low | increase |
+| -ve High | High | decrease |
+| +ve High | Low | decrease |
+| -ve Low | High | increase |
+| +ve Low | Low | increase |
 
 Define a function:
 $$
-risk(\bar \kappa, ||g||) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac 1 {||g||}} + \text{RevReLU}(||g|| \cdot \bar \kappa)
+risk(\bar \kappa, \|g\|) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{\|g\|}} + \text{RevReLU}(\|g\| \cdot \bar \kappa)
 $$
 
 Where RevReLU is defined as:
@@ -103,29 +96,17 @@ $$
       \end{cases}
 $$
 
-This custom risk function still has an error which is the second term : $\text{RevReLU}(||g|| \cdot \bar \kappa)$, here $||g|| \cdot \bar \kappa$ can grow arbitrarily large when $\bar \kappa$ is huge and -ve, to tackle this issue we can introduce a squashing function, $ln(1 + \text{RevReLU}(||g|| \cdot \bar \kappa))$ for example or maybe even $\sigma(\text{RevReLU}(||g|| \cdot \bar \kappa))$
+This custom risk function still has an error which is the second term : $\text{RevReLU}(\|g\| \cdot \bar \kappa)$, here $\|g\| \cdot \bar \kappa$ can grow arbitrarily large when $\bar \kappa$ is huge and -ve, to tackle this issue we can introduce a squashing function, $\ln(1 + \text{RevReLU}(\|g\| \cdot \bar \kappa))$ for example or maybe even $\sigma(\text{RevReLU}(\|g\| \cdot \bar \kappa))$
 
 giving us a final (v2) function of:
 
 $$
-risk(\bar \kappa, ||g||) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac 1 {||g||}} + \sigma(\text{RevReLU}(||g|| \cdot \bar \kappa))
+risk(\bar \kappa, \|g\|) = \frac{1}{\text{ReLU}(\bar \kappa) + \frac{1}{\|g\|}} + \sigma(\text{RevReLU}(\|g\| \cdot \bar \kappa))
 $$
 
 For some reason, an EMA of $\kappa ^2$ works better than an EMA of $\kappa$, for which I am unable to find the reason, but it beats other optimizers on N-Dimensional defined terrains, but that completely destroys the purpose of the curvature based LR calculation
 
 Further, the function I created works too well with terrains with a character of positive curvature and its efficacy drops while dealing with negative curvature and sinusodial terrains
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Muon
 
@@ -162,41 +143,42 @@ and $V^T$ is the transpose of the Right-Singular Vector written in descending or
 
 Ina geometric sense, first we apply the $V^T$ transform where it rotates the eigenvectors of matrix under transform to the basis vectors of the vector space, in such a way that the eigenvector with largest singular value first gets transformed to the x-axis and so on, then we apply the $\Sigma$ transform which scales the vector with a factor of the singular values of the matrix and reduces/adds dimensions being transformed and then we apply U transform to rotate the basis vectors along the eigenvectors of the matrix.
 
-
-
 ## Note: fractional powers of a matrix:
 
 using spectral theorem:
 $$
-A = Q Λ Q^T
+A = Q \Lambda Q^T
 $$
 
 where Q is the orthonormal matrix of eigenvectors as column,
-$Λ$ diagonal matrix of eigenvalues
+$\Lambda$ diagonal matrix of eigenvalues
 
 $$
-A^n = Q Λ^n Q^T
+A^n = Q \Lambda^n Q^T
 $$
 
-since $Λ$ is symmetric (diagonal) matrix so:
+since $\Lambda$ is symmetric (diagonal) matrix so:
 $$
-Λ = \begin{pmatrix} \lambda_1 & 0 \\ 0 & \lambda_2 \end{pmatrix} \\
-Λ^n = \begin{pmatrix} \lambda_1^n & 0 \\ 0 & \lambda_2^n \end{pmatrix} \\
+\begin{aligned}
+\Lambda &= \begin{pmatrix} \lambda_1 & 0 \\ 0 & \lambda_2 \end{pmatrix} \\
+\Lambda^n &= \begin{pmatrix} \lambda_1^n & 0 \\ 0 & \lambda_2^n \end{pmatrix}
+\end{aligned}
 $$
 
 but why do $Q$ and $Q^T$ not get transformed?
 
 because of a pattern:
 $$
-AA = Q Λ Q^T Q Λ Q^T
+AA = Q \Lambda Q^T Q \Lambda Q^T
 $$
 now $Q^T Q = I$ since Q is orthonormal
 $$
-A^2 = Q Λ^2 Q^T \\
+A^2 = Q \Lambda^2 Q^T
 $$
 in general
-$
-A^n = Q Λ^n Q^T$
+$$
+A^n = Q \Lambda^n Q^T
+$$
 
 ## relation between svd and muon
 
@@ -217,18 +199,20 @@ probably because SVD is expensive,
 
 ## Removing $\Sigma$:
 $$
-G = U \Sigma V^T \\
-G^T G = (U \Sigma V^T)^T (U \Sigma V^T) = V \Sigma^TU^TU \Sigma V^T \\
-\text{Since U is orthonormal} \to U^TU = I \\
-G^T G = V \Sigma^T \Sigma V^T \\
-\text{Since Σ is diagonal} \to \Sigma^T = \Sigma \\
-G^T G = V \Sigma^2 V^T, \ \text{taking power -1/2 on bts} \\
-(G^T G)^{-1/2} = V \Sigma^{-1} V^T \ \text{by spectral theorem} \\
-\text{pre multiplying by G} \\
-G (G^T G)^{-1/2} = U \Sigma V^T V \Sigma^{-1} V^T \\
-\text{Since V is orthonormal} \to V^TV = I \\
-G (G^T G)^{-1/2} = U \Sigma \Sigma^{-1} V^T \\
-G (G^T G)^{-1/2} = U V^T
+\begin{aligned}
+G &= U \Sigma V^T \\
+G^T G &= (U \Sigma V^T)^T (U \Sigma V^T) = V \Sigma^T U^T U \Sigma V^T \\
+\text{Since U is orthonormal} &\to U^T U = I \\
+G^T G &= V \Sigma^T \Sigma V^T \\
+\text{Since } \Sigma \text{ is diagonal} &\to \Sigma^T = \Sigma \\
+G^T G &= V \Sigma^2 V^T, \ \text{taking power -1/2 on bts} \\
+(G^T G)^{-1/2} &= V \Sigma^{-1} V^T \ \text{by spectral theorem} \\
+\text{pre multiplying by G} & \\
+G (G^T G)^{-1/2} &= U \Sigma V^T V \Sigma^{-1} V^T \\
+\text{Since V is orthonormal} &\to V^T V = I \\
+G (G^T G)^{-1/2} &= U \Sigma \Sigma^{-1} V^T \\
+G (G^T G)^{-1/2} &= U V^T
+\end{aligned}
 $$
 
 Hence we have simplified $UV^T$ in terms of $G$ (Gradient), now we just need a way to estimate $(G^T G)^{-1/2}$ without again using SVD, we have a technique to do so called the "Newton-Schulz method" but id argue we are using the newton-schulz in its true form, this method is just a derivative of the original method:
@@ -250,11 +234,13 @@ as X $\to A^{-1/2},\ E \to 0$
 
 creating and isolating $A^{-1/2}$:
 $$
-E+I = AX^2 \\
-(E+I)^{-1/2} = (AX^2)^{-1/2} \ \ \text{taking power -1/2 on bts}, \\
-(E+I)^{-1/2} = A^{-1/2} X^{-1} \\
-(E+I)^{-1/2} = A^{-1/2} X^{-1} \ \ \text{post multiply by X}, \\
-(E+I)^{-1/2}X = A^{-1/2}
+\begin{aligned}
+E+I &= AX^2 \\
+(E+I)^{-1/2} &= (AX^2)^{-1/2} \ \ \text{taking power -1/2 on bts}, \\
+(E+I)^{-1/2} &= A^{-1/2} X^{-1} \\
+(E+I)^{-1/2} &= A^{-1/2} X^{-1} \ \ \text{post multiply by X}, \\
+(E+I)^{-1/2}X &= A^{-1/2}
+\end{aligned}
 $$
 
 now we want to estimate $A^{-1/2}$, as in iteratively get close to the value, hence define $A^{-1/2}$ to be the result of an iteration of the operation $(E+I)^{-1/2}X$ so $A^{-1/2} = X_{new}$
@@ -262,10 +248,12 @@ now we want to estimate $A^{-1/2}$, as in iteratively get close to the value, he
 also another thing to notice is that with each iteration $E$ gets smaller and we can also use binomial expansion to estimate $(E+I)^{-1/2}$
 
 $$
-(E+I)^{-1/2} \approx I - \frac12E, \ \ \text{linearization}, \\
-(I - \frac12E)X = A^{-1/2}, \\
-(I - \frac12(AX^2 - I))X = A^{-1/2}, \ \ \text{using defination of E}, \\
-\frac12X_{old}(3I - AX_{old}^2) = X_{new}
+\begin{aligned}
+(E+I)^{-1/2} &\approx I - \frac{1}{2}E, \ \ \text{linearization}, \\
+(I - \frac{1}{2}E)X &= A^{-1/2}, \\
+(I - \frac{1}{2}(AX^2 - I))X &= A^{-1/2}, \ \ \text{using defination of E}, \\
+\frac{1}{2}X_{old}(3I - AX_{old}^2) &= X_{new}
+\end{aligned}
 $$
 
 hence after $N \to \infty$ iterations $X_{new} = A^{-1/2}$
@@ -274,43 +262,45 @@ hence this equation is a really smart and effective way to estimate $(G^T G)^{-1
 Thats it, thats muon, now we just update the variables:
 
 $$
-P_n = P_{n-1} - η UV^T
+P_n = P_{n-1} - \eta UV^T
 $$
 
 # BFGS & L-BFGS (Broyden-Fletcher-Goldfarb-Shanno and limited-BFGS)
 
 ## Newton's method:
 $$
-P_{n+1} = P_{n} - H^{-1} ∇L(x)
+P_{n+1} = P_{n} - H^{-1} \nabla L(x)
 $$
 
 with the variables having their usual meanings
 
-###Derivation:
+### Derivation:
 we want to explore our landscape using small steps: $x + h$
 
 Taylor expansion of $f(x)$ about a small h, where f(x) is our landscape function
 
 $$
-f(x + h) \approx  f(x) + ∇ f(x)^Th + \frac12h^THh
+f(x + h) \approx  f(x) + \nabla f(x)^Th + \frac{1}{2}h^THh
 $$
 
 the above function is an estimation of our landscape f(x) and if we differentiate the above equation wrt h, we find the stationary points (maxima/minima/plateau) of the landscape at that point, keep in mind our main motivation is to find an expression for $h$
 
 $$
-0 = \nabla_h \left[f(x) + ∇ f(x)^Th + \frac12h^THh \right]
+0 = \nabla_h \left[f(x) + \nabla f(x)^Th + \frac{1}{2}h^THh \right]
 $$
 
 I am not expanding the sums and differentiating here like how I did in the puremath series so using the chain rule:
 
 $$
-0 = ∇ f(x) + \frac12 (h^T (\nabla_h Hh)^T  + Hh \nabla_h h^T) \ \ \text{transposed to match dimensions} \\
-0 = ∇ f(x) + \frac12 (2 Hh) \\
-0 = ∇ f(x) + Hh \\
-\text{let ∇ f(x) = G} \\
--G = Hh \\
-\text{pre multiplying by } H^{-1} \\
--H^{-1}G = h
+\begin{aligned}
+0 &= \nabla f(x) + \frac{1}{2} (h^T (\nabla_h Hh)^T  + Hh \nabla_h h^T) \ \ \text{transposed to match dimensions} \\
+0 &= \nabla f(x) + \frac{1}{2} (2 Hh) \\
+0 &= \nabla f(x) + Hh \\
+\text{let } \nabla f(x) &= G \\
+-G &= Hh \\
+\text{pre multiplying by } &H^{-1} \\
+-H^{-1}G &= h
+\end{aligned}
 $$
 
 Hence going by our earlier statement, $x_{new} = x_{old} + h$
@@ -320,7 +310,7 @@ x_{n+1} = x_{n} - H^{-1}G
 $$
 
 ## DFP:
-The theory explained below is of DFS (Davidon-Fletcher-Powell) where we estimate the inverse of H
+The theory explained below is of DFP (Davidon-Fletcher-Powell) where we estimate the inverse of H
 
 Calculating the hessian for trillions of parameters is impossible so, we estimate the hessian $ B\approx H^{-1}$ so that:
 $$
@@ -329,21 +319,27 @@ $$
 
 define certain values:
 $$
-s_n = x_{n+1} - x_n \\
-y_n = G_{n+1} - G_n
+\begin{aligned}
+s_n &= x_{n+1} - x_n \\
+y_n &= G_{n+1} - G_n
+\end{aligned}
 $$
 using taylor expansion of $G_n$ around $s_n$
 $$
-G(x_n + s_n) \approx G(x_n) + Hs_n \\
-G(x_n + x_{n+1} - x_n) - G(x_n) ≈ Hs_n \\
-y_n = Hs_n \ \ \text{this condition is known as the secant equation} \\
-H^{-1}y_n = s_n
+\begin{aligned}
+G(x_n + s_n) &\approx G(x_n) + Hs_n \\
+G(x_n + x_{n+1} - x_n) - G(x_n) &\approx Hs_n \\
+y_n &= Hs_n \ \ \text{this condition is known as the secant equation} \\
+H^{-1}y_n &= s_n
+\end{aligned}
 $$
 
 Now, we need to estimate H recursively so lets have a variable $B_n$ such that
 $$
-B_{n+1}y_n \approx s_n \\
-(B_n + \delta)y_n = s_n
+\begin{aligned}
+B_{n+1}y_n &\approx s_n \\
+(B_n + \delta)y_n &= s_n
+\end{aligned}
 $$
 
 We know that the hessian is symmertrical, hence to ensure symmetry in our $B$, we must ensure $\delta$ is symmetrical (we initilize B from the identity matrix so it is already symmetrical), hence we initialize $\delta$ to be a rank-2 tensor using outer products
@@ -355,14 +351,16 @@ $$
 where $\alpha$ and $\beta$ are constants and $u$ and $v$ are vectors with shapes of $y_n$ we need to find, overall this should satisfy the inverse secant equation:
 
 $$
-(B + \alpha u u^T + \beta v v^T)y_n = s_n \\
-By_n + \alpha u (u^T y_n) + \beta v (v^T y_n) = s_n \\
+\begin{aligned}
+(B + \alpha u u^T + \beta v v^T)y_n &= s_n \\
+By_n + \alpha u (u^T y_n) + \beta v (v^T y_n) &= s_n
+\end{aligned}
 $$
 
 Now $(v^T y_n)$ and $(u^T y_n)$ are constants ($c_1$ and $c_0$) (since same shape of $u$ and $y_n$)
 
 $$
-c_0 \alpha u + c_1 \beta v = s_n - By_n \\
+c_0 \alpha u + c_1 \beta v = s_n - By_n
 $$
 
 The reason why we are using rank 2 tensors n not rank 1 tensor is because rank 1 tensors produce vectors which are always parallel to $y_n$ where as our $s_n - By_n$ term can be anything so to have some more freedom we use rank 2 tensors, rank 3, 4, ..., N ranks are also possible but computationally heavy.
@@ -375,11 +373,13 @@ $$
 
 By direct comparison, we can infer that:
 $$
-\alpha = \frac1{c_0}, \beta = -\frac1{c_1} \\
-\alpha = \frac1{s_n^T y_n}, \beta = -\frac1{y_n^T B_n y_n}, \ \ B_n^T = B_n, \ \ \text{symmetry} \\
-\delta = \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n^T}{y_n^T B_n y_n} \\
-\delta = \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}, \ \ \text{symmetry} \\
-B_{n+1} = B_n + \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}
+\begin{aligned}
+\alpha &= \frac{1}{c_0}, \beta = -\frac{1}{c_1} \\
+\alpha &= \frac{1}{s_n^T y_n}, \beta = -\frac{1}{y_n^T B_n y_n}, \ \ B_n^T = B_n, \ \ \text{symmetry} \\
+\delta &= \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n^T}{y_n^T B_n y_n} \\
+\delta &= \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}, \ \ \text{symmetry} \\
+B_{n+1} &= B_n + \frac{s_n s_n^T}{s_n^T y_n}  -\frac{B_n y_n y_n^T B_n}{y_n^T B_n y_n}
+\end{aligned}
 $$
 
 Thats it for the estimation.
@@ -401,148 +401,4 @@ $$
 and following the same procedure:
 
 $$
-M_{n+1}=M_n+\frac{y_n y_n^T}{y_n^T s_n}-\frac{M_n s_n s_n^T M_n}{s_n^T M_n s_n}.
-$$
-
-But this is the hessian, not the inverse, so we need to invert the entire thing:
-
-$$
-M_{n+1}^{-1}=(M_n+\frac{y_n y_n^T}{y_n^T s_n}-\frac{M_n s_n s_n^T M_n}{s_n^T M_n s_n})^{-1}.
-$$
-
-We can invert it directly costing us a time complexity of $O(n^3)$ or we can use the Sherman-Morrison-Woodbury formula:
-
-### Sherman-Morrison formula:
-suppose we have a matrix $A$ and we know its inverse $A^{-1}$ but then we perturb $A$ by a rank 1 matrix, $A + uu^T$, and now we want to find the inverse of this new matrix, to do so in an efficient and quick manner we have the SM formula
-
-$$
-M = A + uv^T \\
-M^{-1} = A^{-1} + X, \ \ \text{where X is a rank-1 matrix} \\
-$$
-we only have the matrices: $A, A^{-1}$ and $u, v$ in our collection so we must make a general rank 1 matrix out of these matrices:
-
-$$
-X = \alpha u v^T \\
-(A + uv^T)(A^{-1} +  \alpha u v^T) = I \\
-I + \alpha A u v^T + u v^T A^{-1} + \alpha u v^T u v^T = I \\
-\alpha A u v^T + u v^T A^{-1} + \alpha u v^T u v^T = 0
-$$
-
-we cannot really proceed after this, because nothing factors out, so maybe if we try a different ansatz of X:
-
-$$
-X = \alpha A^{-1} u v^T A^{-1} \\
-(A + uv^T)(A^{-1} +  \alpha A^{-1} u v^T A^{-1}) = I \\
-I + \alpha u v^T A^{-1} + u v^T A^{-1} + \alpha u v^T A^{-1} u v^T A^{-1} = I \\
-\alpha u v^T A^{-1} + u v^T A^{-1} + \alpha u v^T A^{-1} u v^T A^{-1} = 0 \\
-u (\alpha + 1 + αv^TA^{−1}u) v^T A^{-1}) = 0 \\
-\alpha + 1 + αv^TA^{−1}u = 0 \\
- \alpha = \frac{-1}{(1 + v^TA^{-1}u)} \\\ \\\ \\
-X = \frac{-(A^{-1} u v^T A^{-1})}{(1 + v^TA^{-1}u)} \\
-M^{-1} = A^{-1} - \frac{A^{-1} u v^T A^{-1}}{(1 + v^TA^{-1}u)}
-$$
-
-applying this exact logic twice on our DFS yields us the BFGS:
-
-$$
-B_{n+1} = \left(I - \frac{s_ny_n^T}{y_n^Ts_n}\right)B_n \left(I - \frac{y_ns_n^T}{y_n^Ts_n}\right) + \frac{s_ns_n^T}{y_n^Ts_n}
-$$
-
-where $M_n^{-1}$ is renamed to $B_n$.
-
-And in L-BFGS, we dont store B but store s and y and directly approximate the hessian from it
-
-## Wolfe's condition and changing LR: (dosent seem that intuitive)
-
-The BFGS algorithm works given that the hessian approximant stays positive-definite, so to guard this, we have 2 conditions that need to be satisfied:
-
-1. Armijo condition:
-
-$$
-f(x+ηp)≤f(x)+aη∇f(x)^Tp
-$$
-
-where p is $p=−B∇f(x)$ and a $\in (0, 1)$ this prevents the learning rate from dying out
-
-2. Curvature condition:
-
-$$
-∇f(x+ηp)^Tp≥b∇f(x)^Tp
-$$
-
-forces us to move in a direction where the slope is decreasing
-
-
-# AdaHessian
-
-just like adam but instead of the velocity being an EWMA of gradient squares, its of hessian squares
-
-$$
-m_t = \beta_1m_{t-1} + (1 - \beta_1)G_t \\
-v_t = \beta_2m_{t-1} + (1 - \beta_2)H_t ^ 2 \\
-p_{t+1} = p_t - \eta \frac{m_t}{\sqrt v_t + \epsilon}
-$$
-
-And obviously, we estimate the hessian
-
-But here unlike BFGS and DFP, we only want the diagonal entries of the hessian because all the other terms act as more of a correlation than a degree of curvature along the axis of parameter so to extract the diagonal terms we have the Hutchinson estimator:
-
-## Hutchinson's estimation:
-In this estimation we use a rademacher matrix:
-
-A matrix sampled from the rademacher distribution is defined as a rademacher matrix (z):
-
-$$
-\mathbb{E}[z_i] = 0 \\
-\mathbb{E}[z_iz_j] = 0 \ \ \text{for} \ \ i \ne j \\
-\mathbb{E}[z_i^2] = 1
-$$
-
-meaning the mean is 0, covariance is 0 (completely independent terms) and variance is 1
-
-for an operation as such: $ z \odot (Hz)$ the expectation for a certain row (i) yields:
-
-$$
-\mathbb{E} [ z \odot (Hz) ]_i = \mathbb{E} \left[ z_i \sum_{j=1}^n H_{ij} z_j \right] = \mathbb{E} \left[ H_{ii} z_i^2 + \sum_{j \neq i} H_{ij} z_i z_j \right] \\
-\\
-$$
-basically in matrix format,
-$$
-
- \begin{bmatrix} \mathbb{E}\left[H_{11}z_1^2 + \sum_{j \neq 1} H_{1j}z_1z_j\right] \\ \mathbb{E}\left[H_{22}z_2^2 + \sum_{j \neq 2} H_{2j}z_2z_j\right] \\ \vdots \\ \mathbb{E}\left[H_{nn}z_n^2 + \sum_{j \neq n} H_{nj}z_nz_j\right] \end{bmatrix}
-$$
-
-since the covariance is 0:
-
-$$
-\mathbb{E} [ z \odot (Hz) ]_i = \mathbb{E} [ H_{ii} z_i^2 ] = H_{ii}\mathbb{E}[z_i^2] = H_{ii}
-$$
-
-hence we have proved that $\mathbb{E} [ z \odot (Hz) ]$ are the diagonal elements
-
-Now the problem lies in finding $Hz$ which again, can be found out using the HVP (Hessian-Vector Product)
-
-$$
-\nabla f(x) = \begin{bmatrix} \frac{\partial f}{\partial x_1} \\ \frac{\partial f}{\partial x_2} \\ \vdots \\ \frac{\partial f}{\partial x_n} \end{bmatrix} \\
-g(x) = \nabla f(x)^T z = \sum_{i=1}^n \frac{\partial f}{\partial x_i} z_i
-$$
-
-where Z is the rademacher vector, now a thing to observe is that when we differentate g(x) wrt x again:
-
-$$
-\nabla_x \Big( \nabla f(x)^T z \Big) = \begin{bmatrix} \frac{\partial}{\partial x_1} \sum_{i=1}^n \frac{\partial f}{\partial x_i} z_i \\ \frac{\partial}{\partial x_2} \sum_{i=1}^n \frac{\partial f}{\partial x_i} z_i \\ \vdots \\ \frac{\partial}{\partial x_n} \sum_{i=1}^n \frac{\partial f}{\partial x_i} z_i \end{bmatrix}
-$$
-
-Notice that this is nothing but the Hessian multiplied by the rademacher vector,
-
-expanding the first row:
-
-$$
-\frac{\partial^2 f}{\partial x_1^2} z_1 + \frac{\partial^2 f}{\partial x_1 \partial x_2} z_2 + \dots + \frac{\partial^2 f}{\partial x_1 \partial x_n} z_n
-$$
-
-And so on for all the rows, hence it is nothing but our $Hz$
-
-$$
-\nabla_x \Big( \nabla f(x)^T z \Big) = Hz
-$$
+M_{n+1}=M_n+\frac{y_n y_n^T}{y_n^T s_
