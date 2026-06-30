@@ -1,0 +1,153 @@
+import numpy as np
+
+
+class V4:
+
+    def __init__(
+            self,
+            function_to_optimize,
+            starting_point,
+            minimum_learning_rate,
+            maximum_learning_rate,
+            alpha,
+            beta
+    ):
+        """
+        :param function_to_optimize: Terrain over we optimize
+        :param starting_point: N dimensional array of an arbitrary start position on the terrain
+        :param minimum_learning_rate: as the name suggests (1e-10)
+        :param maximum_learning_rate: as the name suggests (1)
+        :param alpha: EMA term for gradients (0.99)
+        :param beta: EMA term for beta (0.999)
+
+        ============================================================
+        The only major difference is that in this version, the function used to calculate the Learning Rate is split into 2 behaviours, positive and negative curvature:
+        Positive curvature:
+        ```
+        g_distance = np.linalg.norm(self.g_hat)
+        term_1 = 1 / (self.relu(self.kappa_hat) + 1 / g_distance)
+        term_2 = (1 - self.sigmoid(self.revrelu(self.kappa_hat * g_distance)))
+        lr = (term_1 + term_2)
+        return float(np.clip(lr, self.min_lr, self.max_lr))
+        ```
+
+        Negative Curvature:
+        ```
+        g_distance = np.linalg.norm(self.g_hat)
+        term_1 = 1 / (self.relu(self.kappa_hat_signed) + 1 / g_distance)
+        term_2 = (1 - self.sigmoid(self.revrelu(self.kappa_hat_signed * g_distance)))
+        lr = (term_1 + term_2)
+        return float(np.clip(lr, self.min_lr, self.max_lr))
+        ```
+        ============================================================
+
+        V4 version uses 2 different yet similar functions to tackle +ve and -ve curvature terrains, it uses an EMA of signed values of kappa for the -ve curvature LR function
+        """
+        self.fn = function_to_optimize
+        self.min_lr = minimum_learning_rate
+        self.max_lr = maximum_learning_rate
+        self.alpha = alpha
+        self.beta = beta
+        self.t = 0
+        self.x = np.array(starting_point, dtype=float)
+        self.g = np.zeros_like(self.x)
+        self.g_bar = np.zeros_like(self.x)
+        self.g_hat = np.zeros_like(self.x)
+
+        self.kappa_bar = 0.0
+        self.kappa_hat = 0.0
+
+        self.kappa_bar_signed = 0.0
+        self.kappa_hat_signed = 0.0
+
+        self.history_x = []
+        self.history_g_hat = []
+        self.history_kappa_hat = []
+        self.history_lr = []
+        self.history_euclidean_distance_minima_convergence = []
+
+    def calculate_gradients(self):
+        return self.fn.gradients(self.x)
+
+    def calculate_hessian_change(self, epsilon=1e-4):
+        raw = (self.fn.gradients(self.x + epsilon * self.g) - self.g) / epsilon
+        return raw
+
+    def calculate_curvature(self):
+        g_norm = np.linalg.norm(self.g)
+        if g_norm < 1e-12:
+            return 0.0
+        g_unit = self.g / g_norm
+        return (g_unit.T @ self.calculate_hessian_change()) / (g_unit.T @ g_unit)
+
+    def track_curvature_and_gradient(self):
+        self.t += 1
+        self.g_bar = self.alpha * self.g_bar + (1 - self.alpha) * self.g
+        kappa = self.calculate_curvature()
+
+        self.kappa_bar = self.beta * self.kappa_bar + (1 - self.beta) * kappa ** 2
+        self.kappa_bar_signed = self.beta * self.kappa_bar_signed + (1 - self.beta) * kappa
+
+        self.g_hat = self.g_bar / (1 - self.alpha ** self.t)
+        self.kappa_hat = self.kappa_bar / (1 - self.beta ** self.t)
+        self.kappa_hat_signed = self.kappa_bar_signed / (1 - self.beta ** self.t)
+
+        return self.kappa_hat, self.g_hat, self.kappa_hat_signed
+
+    def relu(self, x):
+        return np.where(x > 0, x, 0)
+
+    def revrelu(self, x):
+        return np.where(x < 0, -x, 0)
+
+    def sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
+    def learning_rate_positive_curvature(self):
+        g_distance = np.linalg.norm(self.g_hat)
+        term_1 = 1 / (self.relu(self.kappa_hat) + 1 / g_distance)
+        term_2 = (1 - self.sigmoid(self.revrelu(self.kappa_hat * g_distance)))
+        lr = (term_1 + term_2)
+        return float(np.clip(lr, self.min_lr, self.max_lr))
+
+    def learning_rate_negative_curvature(self):
+        g_distance = np.linalg.norm(self.g_hat)
+        term_1 = 1 / (self.relu(self.kappa_hat_signed) + 1 / g_distance)
+        term_2 = (1 - self.sigmoid(self.revrelu(self.kappa_hat_signed * g_distance)))
+        lr = (term_1 + term_2)
+        return float(np.clip(lr, self.min_lr, self.max_lr))
+
+    def get_learning_rate(self):
+        if self.kappa_hat_signed >= 0:
+            eta = self.learning_rate_positive_curvature()
+        else:
+            eta = self.learning_rate_negative_curvature()
+        return eta
+
+    def step(self):
+        self.g = self.calculate_gradients()
+        kappa_hat, g_hat, kappa_hat2 = self.track_curvature_and_gradient()
+        eta = self.get_learning_rate()
+        self.x = self.x - eta * g_hat / np.sqrt(self.kappa_hat)
+
+        self.history_x.append(self.x.copy())
+        self.history_g_hat.append(g_hat.copy())
+        self.history_kappa_hat.append(kappa_hat)
+        self.history_lr.append(eta)
+
+        minima = self.fn.minima()
+        if minima is not None:
+            self.history_euclidean_distance_minima_convergence.append(
+                np.linalg.norm(self.x - minima)
+            )
+
+        return self.x, eta, kappa_hat, g_hat
+
+    def track_history(self):
+        return {
+            "x_history": self.history_x,
+            "g_hat_history": self.history_g_hat,
+            "kappa_hat_history": self.history_kappa_hat,
+            "lr_history": self.history_lr,
+            "convergence_history": self.history_euclidean_distance_minima_convergence
+        }
