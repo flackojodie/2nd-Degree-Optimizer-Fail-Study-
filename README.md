@@ -11,20 +11,16 @@ This is an experimental, second degree, curvature aware optimizer that calculate
 
 The optimizer was meant to follow this table: (later not followed through)
 
-$$
-\begin{array}{|l|c|r|}
-\hline
-\text{κ} & \text{||g||} & \text{Optmal η value change} \\ \hline
-\text{+ve High}       & \text{High}               &\text{decrease}                 \\ \hline
-\text{-ve High}       & \text{Low}               & \text{increase}               \\ \hline
-\text{+ve Low}       & \text{High}               & \text{increase}               \\ \hline
-\text{-ve Low}       & \text{Low}               & \text{increase}                \\ \hline
-\text{-ve High}       & \text{High}               &\text{decrease}                 \\ \hline
-\text{+ve High}       & \text{Low}               & \text{decrease}                \\ \hline
-\text{-ve Low}       & \text{High}               & \text{increase}                \\ \hline
-\text{+ve Low}       & \text{Low}               & \text{increase}                \\ \hline
-\end{array}
-$$
+| κ | \|\|g\|\| | Optimal η change |
+| :--- | :---: | :---: |
+| +ve High | High | decrease |
+| -ve High | Low | increase |
+| +ve Low | High | increase |
+| -ve Low | Low | increase |
+| -ve High | High | decrease |
+| +ve High | Low | decrease |
+| -ve Low | High | increase |
+| +ve Low | Low | increase |
 
 **Versions:** I have documented 6 versions of the optimizer, each having different architectures, and I have tried about 5 more architectures which I deemed to be failures and hence did not document them. out of all the versions, V3 performs the best on terrains with positive curvature but it lacks on negative curvature terrains and periodic terrains. MNISTVersion is the version of the optimizer I used on the digit MNIST dataset in the file `CurvatureOptimizerTestRunsTerrains`.
 
